@@ -125,7 +125,7 @@ __xdata u8 realbuf[MAXLEN+1];
 __bit sleepy = 0;
 __bit txFast = 0;
 
-extern u8 _garage_id = 0;
+u8 _garage_id = 0;
 
 void setup_dma_tx()
 {
@@ -283,7 +283,14 @@ void rftx()
 	LED_GREEN = HIGH; // turn green led off
 	LED_RED = LOW; // turn red led on
 
-	// ...
+	/* IRQ_DONE is the only radio interrupt we care about: it fires when the
+	 * packet has been sent and tells waitForTx() that realbuf is free again */
+	EA = 1;                    // enable interrupts globally
+	IEN2 |= IEN2_RFIE;         // route the radio interrupt through the CPU
+	RFIM = RFIM_IM_DONE;       // unmask IRQ_DONE only
+
+	DMAARM |= DMAARM0;         // let DMA0 feed the TX FIFO out of realbuf
+	RFST = RFST_STX;           // start transmitting
 }
 
 // show nyancat while transmitting
@@ -296,7 +303,7 @@ void waitForTx()
 			// this slows down the tx quite a bit
 			title;
 			fb_blank();
-			fb_bitblt((__xdata u8*) nyan[ni++], 30, 20, 0);
+			fb_bitblt(nyan[ni++], 30, 20, 0);
 			fb_flush();
 			//printl(0, "      OpenSesame    ");
 			title;

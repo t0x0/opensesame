@@ -1,3 +1,4 @@
+# shellcheck disable=SC1009,SC1072,SC1073,SC2034  # this is a Makefile, not a shell script
 libs=display.rel rf.rel keys.rel fbuffer.rel zsprites.rel pm.rel
 simlibs=display.c.sim.rel rf.c.sim.rel keys.c.sim.rel
 CC=sdcc
@@ -10,7 +11,9 @@ all: opensesame.hex #simulator.hex
 
 %.rel : %.c
 	$(CC) $(CFLAGS) $(LFLAGS) -c $<
-#$(CC) $(SIMFLAGS) $(CFLAGS) $(LFLAGS) -c $< -o $<.sim.rel
+
+%.c.sim.rel : %.c
+	$(CC) $(SIMFLAGS) $(CFLAGS) $(LFLAGS) -c $< -o $@
 
 simulator.hex: opensesame.c.sim.rel $(libs)
 	$(CC) $(SIMFLAGS) $(LFLAGS) opensesame.c.sim.rel $(simlibs)
@@ -33,3 +36,10 @@ sim:
 	echo "tail -f sim.out"
 	echo
 	s51 -s sim.out simulator.hex
+
+# host side check of the de bruijn / bitstream generator (no sdcc needed)
+test:
+	gcc -I. -O1 -w -fsanitize=address -o rf-test test_debruijn.c -lm
+	./rf-test
+	@rm -f rf-test
+.PHONY: all sim test clean

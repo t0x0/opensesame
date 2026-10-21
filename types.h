@@ -6,7 +6,7 @@
 #define __far static
 #define __data static
 #define __near static
-#define __code static
+#define __code
 #define __bit char
 #include <stdio.h>
 #define pp(...) printf(__VA_ARGS__)

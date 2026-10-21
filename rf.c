@@ -19,14 +19,18 @@
 // calling some functions recursively
 __xdata u8 a[MAXBITS+1]; // largest bit size possible
 u16 s, k;
+u16 txbits;               // bits of realbuf filled by the previous transmission
 u8 tmpi;
 __bit firstTx;
 
 // we could read from garages[] directly but this is faster
-u8 codelen;
 u8 bits, len;
 __bit tri;
-u32 b0, b1;
+u32 b0, b1, b2;
+
+// db() recurses, and sdcc keeps locals static without --stack-auto, so the
+// loop counter is kept per recursion depth instead of in a local
+u8 jj[MAXBITS+2];
 //#define bits g.bits
 //#define len  g.len
 //#define tri  g.tri
@@ -34,10 +38,13 @@ u32 b0, b1;
 //#define b1   g.b1
 
 #ifdef LOCAL
-void rftx() { }
+// local (gcc) build: hand each finished packet to the test driver instead
+// of driving the radio
+extern void tx_capture(void);
+void rftx() { tx_capture(); }
 void waitForTx() { }
-void printl(u8 line, char *str) { }
-int main() { db_send(); }
+void printl(u8 line, char *str) { (void) line; (void) str; }
+u8 _garage_id; // normally defined (and set) by opensesame.c
 u8 sequence[MAXLEN];
 #else
 __xdata u8 sequence[MAXLEN];
@@ -57,6 +64,30 @@ __bit testBit(u8 *A, u16 b)
 	return ( ( A[b / 8] & (1 << (b % 8) ) ) != 0 );
 }
 
+// trinary garages have a third symbol, so a symbol is stored in 2 bits
+void setSym(u16 idx, u8 val)
+{
+	setBit(sequence, idx * 2,     val & 1);
+	setBit(sequence, idx * 2 + 1, val >> 1);
+}
+
+u8 testSym(u16 idx)
+{
+	return (u8) (testBit(sequence, idx * 2) ? 1 : 0)
+	     + (u8) (testBit(sequence, idx * 2 + 1) ? 2 : 0);
+}
+
+// append one symbol to the de bruijn sequence, transmitting whenever realbuf
+// is full.  bits-1 more symbols are always still needed for the tail, so
+// leave room for them or convert_bits() overruns realbuf.
+void emit(u8 val)
+{
+	setSym(s++, val);
+
+	if ((s + bits) * len >= MAXLEN * 8)
+		doTx();
+}
+
 // binary de bruijn sequence -samyk
 void db(u8 t, u8 p)
 {
@@ -67,14 +98,7 @@ void db(u8 t, u8 p)
 		if (bits % p == 0)
 		{
 			for (j = 1; j <= p; j++)
-			{
-				setBit(sequence, s++, a[j]);
-
-				// once we have 254 bytes (may reduce because running out of space!), we need to tx due to size constraints
-				if ((s + 1) * len >= MAXLEN * 8)
-					// transmit
-					doTx();
-			}
+				emit(a[j]);
 		}
 	}
 	else
@@ -82,13 +106,19 @@ void db(u8 t, u8 p)
 		a[t] = a[t-p];
 
 		db(t+1, p);
-		for (j = a[t-p] + 1; j <= (tri ? 2 : 1); j++)
+		for (jj[t] = a[t-p] + 1; jj[t] <= (tri ? 2 : 1); jj[t]++)
 		{
-			a[t] = j;
+			a[t] = jj[t];
 			db(t+1, t);
 		}
 	}
 }
+
+// realbuf is transmitted byte by byte, MSB first, so logical bit k lives in
+// the top bit of byte k/8.  Everything that touches realbuf has to go through
+// this mapping, both to hit the air in the right order and to stay
+// translatable when a packet is shifted inside the buffer.
+#define RB(k) (u16) ((k) / 8 * 8 + (7 - (k) % 8))
 
 // converts our bits to the actual bitstream/modulation the garage expects
 void convert_bits()
@@ -96,18 +126,16 @@ void convert_bits()
 	u8 tlen;
 	u16 z;
 	u32 tb;
+	u8 sym;
 
-	// pull in last X bits of last transmission
+	// pull in the last code's worth of bits of the last transmission, so the
+	// garage's shift register keeps its context over the gap between packets.
+	// s and k are already the counters of *this* pass, so what realbuf holds
+	// comes from the previous one (txbits).
 	if (!firstTx)
 	{
-		// let's keep last bits (10) * len (4) since we may have broken the true code up during this delay
-		for (tmpi = 0; tmpi < codelen; tmpi++)
-		{
-//printf("s=%d cl=%d len=%d realbuf[%d] = rb[%d]\n", s, codelen, len, tmpi,
-//			(int)(ceilf((s*len)/8.0)) - codelen + tmpi);
-			realbuf[tmpi] = realbuf[(int)(ceilf((s*len)/8.0)) - codelen + tmpi];
-			//realbuf[tmpi] = realbuf[((s*len)/8) - codelen + tmpi];
-			}
+		for (z = 0; z < (u16) bits * len; z++)
+			setBit(realbuf, RB(z), testBit(realbuf, RB(txbits - (u16) bits * len + z)));
 	}
 	else
 		firstTx = 0;
@@ -116,16 +144,20 @@ void convert_bits()
 	// eg 0 = 1000, 1 = 1110
 	for (z = k / len; z < s; z++)
 	{
-		tb = testBit(sequence, z) ? b1 : b0;
+		sym = testSym(z);
+		tb = (sym == 2) ? b2 : (sym ? b1 : b0);
 
 		tlen = len;
 		while (tlen--)
 		{
 			// there's gotta be a better way to do this but my brain hurts right now
-			setBit(realbuf, (7-(k%8))+((k/8)*8), (tb >> tlen) & 1);
+			setBit(realbuf, RB(k), (tb >> tlen) & 1);
 			k++;
 		}
 	}
+
+	// this pass filled realbuf up to here; the next one reads its overlap from it
+	txbits = s * len;
 
 	// start 10 bits in next time (assuming 10 bit code)
 	k = bits * len;
@@ -140,6 +172,7 @@ void de_bruijn()
 		a[tmpi] = 0;
 	s = 0;
 	k = 0;
+	txbits = 0;
 	firstTx = 1;
 
 	// begin recursive de bruijn
@@ -147,7 +180,7 @@ void de_bruijn()
 
 	// a real de bruijn wraps, but since we can't wrap time we have to send the last of the bits to complete the sequence
 	for (tmpi = 0; tmpi < bits-1; tmpi++)
-		setBit(sequence, s++, 0);
+		emit(0);
 
 	// transmit anything left over
 	doTx();
@@ -234,7 +267,7 @@ void db_send()
 	tri     = g.tri;
 	b0      = g.b0;
 	b1      = g.b1;
-	codelen = ceilf(bits * (len / 8.0));
+	b2      = g.b2;
 
 	// create and send our de bruijn bitstream
 	de_bruijn();

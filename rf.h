@@ -11,7 +11,7 @@
 
 #ifdef LOCAL
 int PA_TABLE1, PA_TABLE0, FREQ0, FREQ1, FREQ2, CHANNR, MDMCFG3, MDMCFG4;
-u8 realbuf[MAXLEN+1];
+static u8 realbuf[MAXLEN+1];
 #else
 extern __xdata u8 realbuf[MAXLEN+1];
 #endif

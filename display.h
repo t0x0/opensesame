@@ -23,12 +23,16 @@
 
 #include "types.h"
 
-// sdcc 3.7.0+ uses int putchar
-#if (SDCC_VERSION_HI == 3 && SDCC_VERSION_LO >= 7) || (SDCC_VERSION_HI >= 4)
+/* sdcc 3.7.0 and newer declare "int putchar(int)" in stdio.h, older ones
+ * "void putchar(char)".  The definition in display.c has to match whichever
+ * stdio.h we are up against, so build with -DPUTCHAR_LEGACY for old sdcc. */
+#ifdef PUTCHAR_LEGACY
+#define PUTCHAR_TYPE void
+#define PUTCHAR_ARG char
+#else
 #define PUTCHAR_INT
 #define PUTCHAR_TYPE int
-#else
-#define PUTCHAR_TYPE void
+#define PUTCHAR_ARG int
 #endif
 
 static volatile __bit reverseTxt = 0;
@@ -119,5 +123,5 @@ void clear();
 void UART_Init();
 
 #ifndef LOCAL
-PUTCHAR_TYPE putchar(char c);
+PUTCHAR_TYPE putchar(PUTCHAR_ARG c);
 #endif
