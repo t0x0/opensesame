@@ -291,6 +291,12 @@ void rftx()
 
 	DMAARM |= DMAARM0;         // let DMA0 feed the TX FIFO out of realbuf
 	RFST = RFST_STX;           // start transmitting
+
+	while (!txdone);
+
+	RFST = RFST_SIDLE;
+	sleepMillis(500);
+	txdone = 0;
 }
 
 // show nyancat while transmitting
