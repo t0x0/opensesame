@@ -12,7 +12,6 @@
 #include "garages.h"
 #include "rf.h"
 #include <math.h>
-#include <stdio.h>
 
 // we're making these global because
 // we have limited stack and we're
