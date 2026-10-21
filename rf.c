@@ -187,16 +187,16 @@ void de_bruijn()
 }
 
 // set FREQ registers in cc111x from a float
-void setFreq()
+void setFreq(char *FREQ2, char *FREQ1, char *FREQ0)
 {
 #define fnum (u32)(g.hz * ((0x10000 / 1000000.0) / MHZ))
-	FREQ2 = fnum >> 16;
-	FREQ1 = (fnum >> 8) & 0xFF;
-	FREQ0 = fnum & 0xFF;
+	*FREQ2 = fnum >> 16;
+	*FREQ1 = (fnum >> 8) & 0xFF;
+	*FREQ0 = fnum & 0xFF;
 }
 
 // set baudrate registers
-void setBaud()
+void setBaud(float drate, char *MDMCFG4, char *MDMCFG3)
 {
 	u8 drate_e = 0;
 	u8 drate_m = 0;
@@ -216,12 +216,12 @@ void setBaud()
 
 	//drate = 1000000.0 * MHZ * (256+drate_m) * powf(2,drate_e) / powf(2,28);
 
-	MDMCFG3 = drate_m;
+	*MDMCFG3 = drate_m;
 #ifndef MDMCFG4_DRATE_E
 #define MDMCFG4_DRATE_E 0x0F
 #endif
-	MDMCFG4 &= ~MDMCFG4_DRATE_E;
-	MDMCFG4 |= drate_e;
+	*MDMCFG4 &= ~MDMCFG4_DRATE_E;
+	*MDMCFG4 |= drate_e;
 }
 
 // prepare our transmission and keep the end for
@@ -256,11 +256,11 @@ void db_send()
 		PA_TABLE1 = 0xC0;
 
 	// set frequency
-	setFreq();
+	setFreq(g.hz, &FREQ2, &FREQ1, &FREQ0);
 	CHANNR = 0x00;
 
 	// maximum channel bandwidth
-	setBaud();
+	setBaud(g.baud, &MDMCFG4, &MDMCFG3);
 
 	bits    = g.bits;
 	len     = g.len;
