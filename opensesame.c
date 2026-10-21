@@ -237,7 +237,7 @@ int main(void)
 		}
 
 		// start de bruijn sending
-		for (key = 0; key < sizeof(garages)); key++)
+		for (key = 0; key < sizeof(garages); key++)
 		{
 			_garage_id = key;
 			db_send();
