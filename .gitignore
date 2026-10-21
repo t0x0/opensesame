@@ -1,0 +1,7 @@
+# pi sandbox runtime state (managed by pisb.ps1)
+/.pi/sessions/
+/.pi/blackhole/
+
+# reference clones kept for review (see git log)
+/.upstream-t0x0/
+/.upstream-samyk/
