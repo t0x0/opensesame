@@ -24,6 +24,6 @@ __bit testBit(u8 *A, u16 b);
 void db(u8 t, u8 p);
 void convert_bits();
 void de_bruijn();
-void setFreq();
-void setBaud();
+void setFreq(char *FREQ2, char *FREQ1, char *FREQ0);
+void setBaud(float drate, char *MDMCFG4, char *MDMCFG3);
 void doTx();
