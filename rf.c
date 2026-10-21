@@ -214,7 +214,7 @@ void setBaud()
 		}
 	}
 
-	//drate = 1000000.0 * MHZ * (256+drate_m) * powf(2,drate_e) / powf(2,28);
+	drate = 1000000.0 * MHZ * (256+drate_m) * powf(2,drate_e) / powf(2,28);
 
 	MDMCFG3 = drate_m;
 #ifndef MDMCFG4_DRATE_E
